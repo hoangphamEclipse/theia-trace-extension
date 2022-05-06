@@ -45,6 +45,21 @@ export class TraceViewerToolbarContribution implements TabBarToolbarContribution
 
     registerCommands(registry: CommandRegistry): void {
         registry.registerCommand(
+            TraceViewerToolbarCommands.OPEN_OVERVIEW_OUTPUT, {
+            isVisible:(widget: Widget) => {
+                if (widget instanceof TraceViewerWidget) {
+                    return true;
+                }
+                return false;
+            },
+            execute: (widget: Widget) => {
+                if (widget instanceof TraceViewerWidget && !widget.isTraceOverviewOpened()) {
+                    signalManager().fireOpenOverviewOutputSignal();
+                }
+            }
+        });
+
+        registry.registerCommand(
             TraceViewerToolbarCommands.ZOOM_IN, {
             isVisible: (widget: Widget) => {
                 if (widget instanceof TraceViewerWidget) {
@@ -290,6 +305,12 @@ export class TraceViewerToolbarContribution implements TabBarToolbarContribution
             command: TraceViewerToolbarCommands.SERVER_CHECK.id,
             tooltip: TraceViewerToolbarCommands.SERVER_CHECK.label,
             priority: 10,
+        });
+        registry.registerItem({
+            id: TraceViewerToolbarCommands.OPEN_OVERVIEW_OUTPUT.id,
+            command: TraceViewerToolbarCommands.OPEN_OVERVIEW_OUTPUT.id,
+            tooltip: TraceViewerToolbarCommands.OPEN_OVERVIEW_OUTPUT.label,
+            priority: 11,
         });
     }
 }

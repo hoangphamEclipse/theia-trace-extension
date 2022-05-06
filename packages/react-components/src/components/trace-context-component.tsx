@@ -28,6 +28,7 @@ import { BIMath } from 'timeline-chart/lib/bigint-utils';
 import { DataTreeOutputComponent } from './datatree-output-component';
 import { cloneDeep } from 'lodash';
 import { UnitControllerHistoryHandler } from './utils/unit-controller-history-handler';
+import { TraceOverviewComponent } from './trace-overview-component';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -35,9 +36,11 @@ export interface TraceContextProps {
     tspClient: TspClient;
     experiment: Experiment;
     outputs: OutputDescriptor[];
+    overviewDescriptor?: OutputDescriptor; // The default output descriptor for the overview
     markerCategoriesMap: Map<string, string[]>;
     markerSetId: string;
     onOutputRemove: (outputId: string) => void;
+    onOverviewRemove: () => void;
     // Introduce dependency on Theia maybe it should be just a callback
     messageManager: Messages.MessageManager;
     addResizeHandler: (handler: () => void) => void;
@@ -77,6 +80,8 @@ export class TraceContextComponent extends React.Component<TraceContextProps, Tr
     private readonly TIME_SELECTION_STATUS_BAR_KEY = 'time-selection-range';
     private readonly DEFAULT_COMPONENT_HEIGHT: number = 10;
     private readonly DEFAULT_COMPONENT_ROWHEIGHT: number = 20;
+    private readonly DEFAULT_OVERVIEW_HEIGHT: number = 7;
+    private readonly DEFAULT_OVERVIEW_ROWHEIGHT: number = 14;
     private readonly DEFAULT_COMPONENT_LEFT: number = 0;
     private readonly SCROLLBAR_PADDING: number = 12;
     private readonly DEFAULT_CHART_OFFSET = 200;
@@ -90,6 +95,8 @@ export class TraceContextComponent extends React.Component<TraceContextProps, Tr
     private _storedTimescaleLayout: Layout[] = [];
     private _storedNonTimescaleLayout: Layout[] = [];
     private _storedPinnedViewLayout: Layout | undefined = undefined;
+    private _storedOverviewLayout: Layout[] = [];
+
     protected widgetResizeHandlers: (() => void)[] = [];
     protected readonly addWidgetResizeHandler = (h: () => void): void => {
         this.widgetResizeHandlers.push(h);
@@ -393,7 +400,7 @@ export class TraceContextComponent extends React.Component<TraceContextProps, Tr
     }
 
     render(): JSX.Element {
-        const shouldRenderOutputs = (this.state.style.width > 0 && this.props.outputs.length);
+        const shouldRenderOutputs = (this.state.style.width > 0 && (this.props.outputs.length || this.props.overviewDescriptor));
         return <div className='trace-context-container'
             onContextMenu={event => this.onContextMenu(event)}
             onKeyDown={event => this.onKeyDown(event)}
@@ -466,6 +473,12 @@ export class TraceContextComponent extends React.Component<TraceContextProps, Tr
                 // Syntax to use ReactGridLayout with Custom Components, while passing resized dimensions to children:
                 // https://github.com/STRML/react-grid-layout/issues/299#issuecomment-524959229
             }
+            {
+                this.props.overviewDescriptor &&
+                <>
+                    {this.renderOverview(this.props.overviewDescriptor , this._storedOverviewLayout)}
+                </>
+            }
             {this.state.pinnedView !== undefined && this._storedPinnedViewLayout !== undefined &&
                 !pinnedViewTimeScale &&
                 <div className='pinned-views-layout' style={{marginTop: '30px'}}>
@@ -500,6 +513,7 @@ export class TraceContextComponent extends React.Component<TraceContextProps, Tr
                     </div>
                 </>
             }
+
             {nonTimeScaleCharts.length > 0 &&
                 <div style={{marginTop: (!timeScaleChartExists && this.state.pinnedView === undefined) ? '30px' : '0px'}}>
                     {this.renderGridLayout(nonTimeScaleCharts, this._storedNonTimescaleLayout)}
@@ -570,6 +584,33 @@ export class TraceContextComponent extends React.Component<TraceContextProps, Tr
             pinnedView,
             storedPinnedViewLayout
         };
+    }
+
+    private renderOverview(output: OutputDescriptor, layout: Layout[]) {
+        const outputProps: AbstractOutputProps = {
+            tspClient: this.props.tspClient,
+            tooltipComponent: this.tooltipComponent.current,
+            tooltipXYComponent: this.tooltipXYComponent.current,
+            traceId: this.state.experiment.UUID,
+            outputDescriptor: output,
+            markerCategories: this.props.markerCategoriesMap.get(output.id),
+            markerSetId: this.props.markerSetId,
+            range: this.state.currentRange,
+            nbEvents: this.state.experiment.nbEvents,
+            viewRange: this.state.currentViewRange,
+            selectionRange: this.state.currentTimeSelection,
+            style: this.state.style,
+            onOutputRemove: this.props.onOverviewRemove,
+            unitController: this.unitController,
+            outputWidth: this.state.style.width,
+            backgroundTheme: this.state.backgroundTheme,
+            setChartOffset: this.setChartOffset
+        };
+        return <ResponsiveGridLayout margin={[0, 5]} isResizable={true} isDraggable={true} resizeHandles={['se', 's', 'sw']}
+        onLayoutChange={this.onLayoutChange} layouts={{ lg: layout }} cols={{ lg: 1 }} breakpoints={{ lg: 1200 }} rowHeight={this.DEFAULT_OVERVIEW_ROWHEIGHT}
+        draggableHandle={'.title-bar-label'}>
+            <TraceOverviewComponent key={'Overview'} {...outputProps}></TraceOverviewComponent>
+        </ResponsiveGridLayout>;
     }
 
     private renderPlaceHolder() {
@@ -680,6 +721,16 @@ export class TraceContextComponent extends React.Component<TraceContextProps, Tr
         });
         this._storedNonTimescaleLayout.forEach((output, index) => {
             output.y = index;
+        });
+
+        // TODO: dynamically implement the layout for the trace overview
+        this._storedOverviewLayout = [];
+        this._storedOverviewLayout.push({
+            i: 'Overview',
+            x: 0,
+            y: 0,
+            w: 1,
+            h: this.DEFAULT_OVERVIEW_HEIGHT,
         });
     }
 }
