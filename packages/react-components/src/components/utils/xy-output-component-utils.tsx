@@ -8,6 +8,29 @@ export interface XYChartFactoryParams {
     isScatterPlot: boolean
 }
 
+export interface XYOutputMargin {
+    top: number,
+    right: number,
+    bottom: number,
+    left: number
+}
+
+export interface GetClosestPointParam {
+    dataPoints: XYPoint[],
+    mousePosition: XYPoint,
+    chartWidth: number,
+    chartHeight: number,
+    range: TimeRange,
+    margin: XYOutputMargin,
+    allMax: number,
+    allMin: number,
+}
+
+export interface XYPoint {
+    x: number,
+    y: number
+}
+
 export function xyChartFactory(params: XYChartFactoryParams):  Chart.ChartOptions {
     const baseOptions: Chart.ChartOptions = getDefaultChartOptions(params);
 
@@ -123,4 +146,34 @@ export function drawSelection(ctx: CanvasRenderingContext2D | null,
         ctx.fillRect(minPixel, 0, maxPixel - minPixel, finalPoint);
         ctx.restore();
     }
+}
+
+export function getClosestPointForScatterPlot(params: GetClosestPointParam): XYPoint | undefined {
+    let min_hypotenuse = Number.MAX_VALUE;
+    let closestPoint = undefined;
+    const offset = params.range.getOffset() ?? BigInt(0);
+    const start = params.range.getStart();
+    const end = params.range.getEnd();
+    const xRatio = params.chartWidth / Number(end - start);
+    const yRatio = (params.chartHeight - params.margin.top - params.margin.bottom) / (params.allMax - params.allMin);
+
+    params.dataPoints.forEach((point: XYPoint) => {
+        const x = (point.x - Number(start - offset)) * xRatio;
+        const y = (point.y - params.allMin) * yRatio + params.margin.bottom;
+        const distX = params.mousePosition.x - x;
+        const distY = params.chartHeight - params.mousePosition.y - y;
+        const hypotenuse = distX * distX + distY * distY;
+
+        if (min_hypotenuse > hypotenuse){
+            closestPoint = point;
+            min_hypotenuse = hypotenuse;
+        }
+    });
+
+    // Return closest point only if it is in a circle with a radius of 20 pixels
+    if (min_hypotenuse < 400) {
+        return closestPoint;
+    }
+
+    return undefined;
 }

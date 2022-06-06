@@ -65,8 +65,8 @@ export class XYOutputOverviewComponent extends AbstractXYOutputComponent<Abstrac
                     onKeyUp={event => this.onKeyUp(event)}
                     onWheel={event => this.onWheel(event)}
                     onMouseMove={event => this.onMouseMove(event)}
-                    // onContextMenu={event => event.preventDefault()}
-                    // onMouseLeave={event => this.onMouseLeave(event)}
+                    onContextMenu={event => event.preventDefault()}
+                    onMouseLeave={event => this.onMouseLeave(event)}
                     onMouseDown={event => this.onMouseDown(event)}
                     style={{ height: this.props.style.height, position: 'relative', cursor: this.state.cursor }}
                     ref={this.divRef}
@@ -158,6 +158,7 @@ export class XYOutputOverviewComponent extends AbstractXYOutputComponent<Abstrac
     }
 
     private onKeyDown(key: React.KeyboardEvent): void {
+        this.hideTooltip();
         if (!this.isMouseLeave) {
             const action = this.keyMapping.get(key.key);
             switch (action) {
@@ -226,6 +227,21 @@ export class XYOutputOverviewComponent extends AbstractXYOutputComponent<Abstrac
         if (this.mouseIsDown && this.clickedMouseButton === MouseButton.RIGHT) {
             this.forceUpdate();
         }
+
+        if (this.state.xyData.datasets.length > 0) {
+            this.tooltip(event.nativeEvent.x, event.nativeEvent.y);
+        }
+    }
+
+    private onMouseLeave(event: React.MouseEvent) {
+        this.isMouseLeave = true;
+        const width = this.isBarPlot ? this.getChartWidth() : this.chartRef.current.chartInstance.width;
+        this.positionXMove = Math.max(0, Math.min(event.nativeEvent.offsetX, width));
+        this.forceUpdate();
+        if (this.mouseIsDown && !(this.clickedMouseButton === MouseButton.RIGHT)) {
+            this.updateSelection();
+        }
+        this.hideTooltip();
     }
 
     private onMidButtonClick(event: React.MouseEvent) {

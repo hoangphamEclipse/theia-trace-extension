@@ -14,7 +14,7 @@ import { XYSeries } from 'tsp-typescript-client/lib/models/xy';
 import * as React from 'react';
 import { TimeRange } from 'traceviewer-base/src/utils/time-range';
 import { BIMath } from 'timeline-chart/lib/bigint-utils';
-import { XYChartFactoryParams, xyChartFactory } from './utils/xy-output-component-utils';
+import { XYChartFactoryParams, xyChartFactory, GetClosestPointParam, getClosestPointForScatterPlot } from './utils/xy-output-component-utils';
 import { ChartOptions } from 'chart.js';
 import { Line, Scatter } from 'react-chartjs-2';
 import { signalManager, Signals } from 'traceviewer-base/lib/signals/signal-manager';
@@ -85,6 +85,7 @@ export abstract class AbstractXYOutputComponent<P extends AbstractOutputProps, S
     protected keyActionMap = new Map<string, XY_OUTPUT_KEY_ACTIONS>();
     private preventDefaultHandler: ((event: WheelEvent) => void) | undefined;
     protected posPixelSelect = 0;
+    protected positionYMove = 0;
 
     // Event flags
     protected isMouseLeave = false;
@@ -594,5 +595,127 @@ export abstract class AbstractXYOutputComponent<P extends AbstractOutputProps, S
                 end: endRange
             };
         }
+    }
+
+    protected tooltip(x: number, y: number): void {
+        const xPos = this.positionXMove;
+        const timeForX = this.getTimeForX(xPos);
+        let timeLabel: string | undefined = timeForX.toString();
+        if (this.props.unitController.numberTranslator) {
+            timeLabel = this.props.unitController.numberTranslator(timeForX);
+        }
+        const chartWidth = this.isBarPlot ? this.getChartWidth() : this.chartRef.current.chartInstance.width;
+        const chartHeight = this.isBarPlot ? parseInt(this.props.style.height.toString()) : this.chartRef.current.chartInstance.height;
+        const arraySize = this.state.xyData.labels.length;
+        const index = Math.max(Math.round((xPos / chartWidth) * (arraySize - 1)), 0);
+        const points: any = [];
+        let zeros = 0;
+
+        this.state.xyData.datasets.forEach((d: any) => {
+            let yValue = 0;
+            let xValue = 0;
+            let invalidPoint = false;
+            if (this.isScatterPlot) {
+                if (d.data.length > 0) {
+                    const getClosestPointParam: GetClosestPointParam = {
+                        dataPoints: d.data,
+                        mousePosition: {
+                            x: this.positionXMove,
+                            y: this.positionYMove
+                        },
+                        chartWidth: chartWidth,
+                        chartHeight: chartHeight,
+                        range: this.getDisplayedRange(),
+                        margin: this.margin,
+                        allMax: this.state.allMax,
+                        allMin: this.state.allMin,
+                    };
+
+                    // Find the data point that is the closest to the mouse position
+                    const closest = getClosestPointForScatterPlot(getClosestPointParam);
+
+                    if (closest !== undefined) {
+                        yValue = closest.y;
+                        xValue = closest.x;
+                    } else {
+                        invalidPoint = true; // Too far from mouse
+                    }
+                } else {
+                    invalidPoint = true; // Series without any data
+                }
+            } else {
+                // In case there are less data points than pixels in the chart,
+                // calculate nearest value.
+                yValue = d.data[index];
+            }
+            const rounded: number = isNaN(yValue) ? 0 : (Math.round(Number(yValue) * 100) / 100);
+            let formatted: string = new Intl.NumberFormat().format(rounded);
+
+            if (this.isScatterPlot && this.props.unitController.numberTranslator) {
+                const time = this.props.unitController.numberTranslator(BigInt(xValue));
+                formatted = '(' + time + ') ' + formatted;
+                timeLabel = 'Series (time stamp) value';
+            }
+
+            // If there are less than 10 lines in the chart, show all values, even if they are equal to 0.
+            // If there are more than 10 lines in the chart, summarise the ones that are equal to 0.
+            if (!invalidPoint) {
+                if (this.state.xyData.datasets.length <= 10 || rounded > 0) {
+                    const point: any = {
+                        label: d.label,
+                        color: d.borderColor,
+                        background: d.backgroundColor,
+                        value: formatted
+                    };
+                    points.push(point);
+                } else if (!this.isScatterPlot) {
+                    zeros += 1;
+                }
+            }
+        });
+        // Sort in decreasing order
+        points.sort((a: any, b: any) => Number(b.value) - Number(a.value));
+
+        // Adjust tooltip position if mouse is too close to the bottom of the window
+        let topPos = undefined;
+        let bottomPos = undefined;
+        if (y > window.innerHeight - 350) {
+            bottomPos = window.innerHeight - y;
+        } else {
+            topPos = window.pageYOffset + y - 40;
+        }
+
+        // Adjust tooltip position if mouse is too close to the left edge of the chart
+        let leftPos = undefined;
+        let rightPos = undefined;
+        const xLocation = chartWidth - xPos;
+        if (xLocation > chartWidth * 0.8) {
+            leftPos = x - this.props.style.componentLeft;
+        } else {
+            rightPos = xLocation;
+        }
+
+        const tooltipData = {
+            title: timeLabel,
+            dataPoints: points,
+            top: topPos,
+            bottom: bottomPos,
+            right: rightPos,
+            left: leftPos,
+            opacity: 1,
+            zeros
+        };
+
+        if (points.length > 0) {
+            this.props.tooltipXYComponent?.setElement(tooltipData);
+        } else {
+            this.hideTooltip();
+        }
+    }
+
+    protected hideTooltip(): void {
+        this.props.tooltipXYComponent?.setElement({
+            opacity: 0
+        });
     }
 }
