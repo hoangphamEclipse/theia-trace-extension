@@ -360,7 +360,7 @@ export abstract class AbstractXYOutputComponent<P extends AbstractOutputProps, S
         if (document.getElementById(this.getOutputComponentDomId() + 'focusContainer')) {
             document.getElementById(this.getOutputComponentDomId() + 'focusContainer')?.focus();
         } else {
-            document.getElementById(this.props.traceId + this.props.outputDescriptor.id)?.focus();
+            document.getElementById(this.getOutputComponentDomId())?.focus();
         }
     }
 

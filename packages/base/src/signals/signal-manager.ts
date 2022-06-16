@@ -117,7 +117,7 @@ export class SignalManager extends EventEmitter implements SignalManager {
     fireTraceServerStartedSignal(): void {
         this.emit(Signals.TRACE_SERVER_STARTED);
     }
-     fireUndoSignal(): void {
+    fireUndoSignal(): void {
         this.emit(Signals.UNDO);
     }
     fireRedoSignal(): void {
