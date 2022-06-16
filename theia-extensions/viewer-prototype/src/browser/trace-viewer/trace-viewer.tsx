@@ -402,6 +402,12 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
             }
 
             this.shell.activateWidget(this.openedExperiment.UUID);
+
+            // Update the trace UUID so that the overview can be opened
+            this.overviewOutputTraceUUID = this.openedExperiment.UUID;
+            if (this.loadTraceOverview){
+                this.updateOverviewOutputDescriptor();
+            }
         }
     }
 
@@ -537,8 +543,8 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
      * Get the output descriptor for the trace over view
      */
     protected async getTraceOverviewOutputDescriptor(): Promise<OutputDescriptor | undefined> {
-        if (this.openedExperiment){
-            const descriptors = await this.experimentManager.getAvailableOutputs(this.openedExperiment.UUID);
+        if (this.overviewOutputTraceUUID){
+            const descriptors = await this.experimentManager.getAvailableOutputs(this.overviewOutputTraceUUID);
             if (descriptors){
                 // TODO: Dynamically decide which data provider to use
                 const overviewOutputDescriptor = descriptors.find(output => output.id === TraceViewerWidget.DEFAULT_OVERVIEW_DATA_PROVIDER_ID);
