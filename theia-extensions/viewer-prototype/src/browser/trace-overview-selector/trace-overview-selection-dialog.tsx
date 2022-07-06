@@ -17,10 +17,8 @@ export class TraceOverviewSelectionDialogService{
         const dialogProps: DialogProps = {
             title: 'Select overview source'
         };
-        console.log('Open dialog:: Opening the dialog', outputDescriptors);
         const dialog = new TraceOverviewSelectionDialog(dialogProps, outputDescriptors);
         const returnedValue = await dialog.open();
-        console.log('Open dialog:: Returned value static class', returnedValue);
 
         return returnedValue;
     }
@@ -43,7 +41,7 @@ export class TraceOverviewSelectionDialog extends ReactDialog<OutputDescriptor>{
     constructor(props: DialogProps, output: OutputDescriptor[]){
         super(props);
         this.outputDescriptor = output;
-        console.log('Open dialog:: TraceOverviewSelectionDialog', this.outputDescriptor);
+        this.appendCloseButton('Cancel');
     }
 
     protected override onCloseRequest(msg: Message): void {
@@ -64,21 +62,19 @@ export class TraceOverviewSelectionDialog extends ReactDialog<OutputDescriptor>{
         const totalHeight = this.getTotalHeight();
 
         return (
-            <div>
-                <div>
-                    <AutoSizer>
-                        {({ width }) =>
-                            <List
-                                key={key}
-                                height={totalHeight}
-                                width={width}
-                                rowCount={outputsRowCount}
-                                rowHeight={TraceOverviewSelectionDialog.ROW_HEIGHT}
-                                rowRenderer={this.renderRowOutputs}
-                            />
-                        }
-                    </AutoSizer>
-                </div>
+            <div style={{ height: (totalHeight + 'px') }}>
+                <AutoSizer>
+                    {({ width }) =>
+                        <List
+                            key={key}
+                            height={totalHeight}
+                            width={width}
+                            rowCount={outputsRowCount}
+                            rowHeight={TraceOverviewSelectionDialog.ROW_HEIGHT}
+                            rowRenderer={this.renderRowOutputs}
+                        />
+                    }
+                </AutoSizer>
             </div>
         );
     }
@@ -86,7 +82,6 @@ export class TraceOverviewSelectionDialog extends ReactDialog<OutputDescriptor>{
     protected renderRowOutputs = (props: ListRowProps): React.ReactNode => this.doRenderRowOutputs(props);
 
     private doRenderRowOutputs(props: ListRowProps): React.ReactNode {
-        console.log('Open dialog:: Render row output');
         let outputName = '';
         let outputDescription = '';
         let output: OutputDescriptor | undefined;
@@ -100,12 +95,13 @@ export class TraceOverviewSelectionDialog extends ReactDialog<OutputDescriptor>{
         // if (props.index === this.state.lastSelectedOutputIndex) {
         //     traceContainerClassName = traceContainerClassName + ' theia-mod-selected';
         // }
-        return <div className={traceContainerClassName}
+        return <div
+            className={traceContainerClassName}
             title={outputName + ':\n' + outputDescription}
-            // id={`${traceContainerClassName}-${props.index}`}
+            id={`${traceContainerClassName}-${props.index}`}
             key={props.key}
-            style={props.style}
             onClick={this.handleOutputClicked}
+            style={{cursor: 'pointer'}}
             // onContextMenu={event => { this.handleContextMenuEvent(event, output); }}
             data-id={`${props.index}`}
         >

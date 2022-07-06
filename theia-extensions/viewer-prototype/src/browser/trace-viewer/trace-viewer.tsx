@@ -21,6 +21,7 @@ import { BackendFileService } from '../../common/backend-file-service';
 import { CancellationTokenSource } from '@theia/core';
 import * as React from 'react';
 import 'animate.css';
+import { TraceOverviewSelectionDialogService } from '../trace-overview-selector/trace-overview-selection-dialog';
 
 export const TraceViewerWidgetOptions = Symbol('TraceViewerWidgetOptions');
 export interface TraceViewerWidgetOptions {
@@ -37,13 +38,13 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
     protected uri: Path;
     protected openedExperiment: Experiment | undefined;
     protected outputDescriptors: OutputDescriptor[] = [];
+    protected overviewOutputDescriptors: OutputDescriptor[] = [];
     protected tspClient: TspClient;
     protected traceManager: TraceManager;
     protected experimentManager: ExperimentManager;
     protected backgroundTheme: string;
     protected traceContextComponent: React.RefObject<TraceContextComponent>;
     protected persistedState?: PersistedState;
-    protected loadTraceOverview = true;
     protected overviewOutputTraceUUID: string | undefined;
 
     protected resizeHandlers: (() => void)[] = [];
@@ -66,7 +67,7 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
 
     private onOutputAdded = (payload: OutputAddedSignalPayload): Promise<void> => this.doHandleOutputAddedSignal(payload);
     private onTraceOverviewOpened = (): Promise<void> => this.doHandleTraceOverviewOpenedSignal();
-    private onExperimentSelected = (experiment: Experiment): void => this.doHandleExperimentSelectedSignal(experiment);
+    private onExperimentSelected = (experiment: Experiment): Promise<void> => this.doHandleExperimentSelectedSignal(experiment);
     private onCloseExperiment = (UUID: string): void => this.doHandleCloseExperimentSignal(UUID);
     private onMarkerCategoryClosedSignal = (payload: { traceViewerId: string, markerCategory: string }) => this.doHandleMarkerCategoryClosedSignal(payload);
 
@@ -123,11 +124,6 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
         this.toDispose.push(this.toDisposeOnNewExplorer);
         // Make node focusable so it can achieve focus on activate (avoid warning);
         this.node.tabIndex = 0;
-
-        // Load the trace overview by default
-        if (this.loadTraceOverview){
-            this.doHandleTraceOverviewOpenedSignal();
-        }
     }
 
     protected readonly toDisposeOnNewExplorer = new DisposableCollection();
@@ -284,7 +280,6 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
         if (persistedState.storedOverviewOutput){
             this.overviewOutputDescriptor = persistedState.storedOverviewOutput;
         }
-        this.loadTraceOverview = false;
     }
 
     private async fetchMarkerSets(expUUID: string) {
@@ -394,20 +389,14 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
         this.update();
     }
 
-    protected doHandleExperimentSelectedSignal(experiment: Experiment): void {
+    protected async doHandleExperimentSelectedSignal(experiment: Experiment): Promise<void> {
         if (this.openedExperiment && this.openedExperiment.UUID === experiment.UUID) {
-            // Update the trace UUID so that the overview can be opened
-            if (this.loadTraceOverview){
-                this.updateOverviewOutputDescriptor();
+            const defaultOverviewOutput = await this.getDefaultOverviewOutputDescriptor();
+            if (defaultOverviewOutput){
+                this.updateOverviewOutputDescriptor(defaultOverviewOutput);
             }
 
             this.shell.activateWidget(this.openedExperiment.UUID);
-
-            // Update the trace UUID so that the overview can be opened
-            this.overviewOutputTraceUUID = this.openedExperiment.UUID;
-            if (this.loadTraceOverview){
-                this.updateOverviewOutputDescriptor();
-            }
         }
     }
 
@@ -421,19 +410,24 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
 
     private async doHandleTraceOverviewOpenedSignal(): Promise<void> {
         if (this.openedExperiment){
-            this.updateOverviewOutputDescriptor();
+            const overviewOutputDescriptor = await this.getTraceOverviewOutputDescriptor();
+
+            if (overviewOutputDescriptor){
+                const selectedOverviewOutput = await TraceOverviewSelectionDialogService.showOpenDialog(this.overviewOutputDescriptors);
+
+                if (selectedOverviewOutput) {
+                    this.updateOverviewOutputDescriptor(selectedOverviewOutput);
+                }
+            }
+
             this.shell.activateWidget(this.openedExperiment.UUID);
         }
     }
 
-    private async updateOverviewOutputDescriptor(): Promise<void> {
-        if (this.openedExperiment && !this.overviewOutputDescriptor) {
-            const overviewOutputDescriptor = await this.getTraceOverviewOutputDescriptor();
-            if (overviewOutputDescriptor) {
-                this.loadTraceOverview = false;
-                this.overviewOutputDescriptor = overviewOutputDescriptor;
-                this.update();
-            }
+    private async updateOverviewOutputDescriptor(outputDescriptor: OutputDescriptor): Promise<void> {
+        if (outputDescriptor) {
+            this.overviewOutputDescriptor = outputDescriptor;
+            this.update();
         }
     }
 
@@ -542,14 +536,23 @@ export class TraceViewerWidget extends ReactWidget implements StatefulWidget {
     /**
      * Get the output descriptor for the trace over view
      */
-    protected async getTraceOverviewOutputDescriptor(): Promise<OutputDescriptor | undefined> {
+    protected async getTraceOverviewOutputDescriptor(): Promise<OutputDescriptor[] | undefined> {
         if (this.overviewOutputTraceUUID){
             const descriptors = await this.experimentManager.getAvailableOutputs(this.overviewOutputTraceUUID);
-            if (descriptors){
-                // TODO: Dynamically decide which data provider to use
-                const overviewOutputDescriptor = descriptors.find(output => output.id === TraceViewerWidget.DEFAULT_OVERVIEW_DATA_PROVIDER_ID);
-                return overviewOutputDescriptor;
+
+            if (descriptors) {
+               return this.overviewOutputDescriptors = descriptors.filter(output => output.type === 'TREE_TIME_XY');
             }
+        }
+    }
+
+    /**
+     * Get the default output descriptor for the trace over view
+     */
+     protected async getDefaultOverviewOutputDescriptor(): Promise<OutputDescriptor | undefined> {
+        const outputDescriptors = await this.getTraceOverviewOutputDescriptor();
+        if (outputDescriptors) {
+            return outputDescriptors.find(output => output.id === TraceViewerWidget.DEFAULT_OVERVIEW_DATA_PROVIDER_ID);
         }
     }
 }

@@ -53,7 +53,7 @@ export class TraceViewerToolbarContribution implements TabBarToolbarContribution
                 return false;
             },
             execute: (widget: Widget) => {
-                if (widget instanceof TraceViewerWidget && !widget.isTraceOverviewOpened()) {
+                if (widget instanceof TraceViewerWidget) {
                     signalManager().fireOpenOverviewOutputSignal();
                 }
             }
